@@ -30,3 +30,22 @@ func (i *GRPCInterceptor) XRequestIDInterceptor() grpc.UnaryServerInterceptor {
 		return handler(ctx, req)
 	}
 }
+
+func (i *GRPCInterceptor) XRequestIDUnaryClientInterceptor() grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply interface{},
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		xReqID := shared_context.XRequestIDFromContext(ctx)
+		if xReqID == "" {
+			xReqID = uuid.New().String()
+		}
+
+		ctx = metadata.AppendToOutgoingContext(ctx, shared_context.ContextKeyEnumXRequestID.String(), xReqID)
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+}

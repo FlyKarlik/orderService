@@ -22,8 +22,8 @@ type IGRPCClient interface {
 	WaitForStateChange(ctx context.Context, sourceState connectivity.State) bool
 }
 
-func New(address string, cfg *config.Config) (*grpc.ClientConn, error) {
-	opts := []grpc.DialOption{
+func New(address string, cfg *config.Config, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	gGRPCopts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			Backoff: backoff.Config{
@@ -35,6 +35,7 @@ func New(address string, cfg *config.Config) (*grpc.ClientConn, error) {
 			MinConnectTimeout: cfg.GRPCClient.ConnectTimeout,
 		}),
 	}
+	gGRPCopts = append(gGRPCopts, opts...)
 
-	return grpc.NewClient(address, opts...)
+	return grpc.NewClient(address, gGRPCopts...)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/FlyKarlik/orderService/config"
+	grpc_interceptor "github.com/FlyKarlik/orderService/internal/delivery/grpc/interceptor"
 	"github.com/FlyKarlik/orderService/internal/domain"
 	spot_instrument_driver "github.com/FlyKarlik/orderService/internal/driver/spot_instrument"
 	grpc_client "github.com/FlyKarlik/orderService/pkg/client/grpc"
@@ -23,9 +24,13 @@ type driverImpl struct {
 	IMarketDriver
 }
 
-func New(cfg *config.Config, logger logger.Logger) (*driverImpl, []grpc_client.IGRPCClient, error) {
+func New(
+	cfg *config.Config,
+	logger logger.Logger,
+	interceptor *grpc_interceptor.GRPCInterceptor,
+) (*driverImpl, []grpc_client.IGRPCClient, error) {
 	grpcConns := make([]grpc_client.IGRPCClient, 0)
-	spotInstrumentConn, err := spot_instrument_driver.SetupSpotInstrumentClient(cfg)
+	spotInstrumentConn, err := spot_instrument_driver.SetupSpotInstrumentClient(cfg, interceptor)
 	if err != nil {
 		return nil, nil, err
 	}

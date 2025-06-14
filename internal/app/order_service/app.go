@@ -45,7 +45,9 @@ func (o *OrderService) Start() error {
 
 	o.mustSetupTracer()
 
-	driver, clients, err := o.mustSetupDriver(o.cfg, o.logger)
+	grpcInterceptor := o.mustSetupGRPCInterceptor()
+
+	driver, clients, err := o.mustSetupDriver(o.cfg, o.logger, grpcInterceptor)
 	if err != nil {
 		o.logger.Error(layer, method, "failed to init driver client", err)
 		return err
@@ -73,7 +75,7 @@ func (o *OrderService) Start() error {
 			method,
 			"starting gRPC server",
 			"address: %s", o.cfg.GRPCServer.Address)
-		if err := o.mustStartGRPCServer(usecase); err != nil {
+		if err := o.mustStartGRPCServer(usecase, grpcInterceptor); err != nil {
 			o.logger.Error(layer, method, "failed to start grpc server", err)
 			os.Exit(1)
 		}
@@ -120,12 +122,16 @@ func (o *OrderService) mustSetupRepo() repository.Repository {
 	return repository.New(o.logger, redisClient)
 }
 
-func (o *OrderService) mustSetupDriver(cfg *config.Config, l logger.Logger) (driver.Driver, []grpc_client.IGRPCClient, error) {
+func (o *OrderService) mustSetupDriver(
+	cfg *config.Config,
+	l logger.Logger,
+	interceptor *grpc_interceptor.GRPCInterceptor,
+) (driver.Driver, []grpc_client.IGRPCClient, error) {
 	const method = "mustSetuDriver"
 	const layer = "app"
 
 	o.logger.Info(layer, method, "setting up driver")
-	return driver.New(cfg, l)
+	return driver.New(cfg, l, interceptor)
 }
 
 func (o *OrderService) mustSetupUsecase(driver driver.Driver, repo repository.Repository) usecase.Usecase {
@@ -136,16 +142,19 @@ func (o *OrderService) mustSetupUsecase(driver driver.Driver, repo repository.Re
 	return usecase.New(o.logger, driver, repo)
 }
 
-func (o *OrderService) mustStartGRPCServer(usecase usecase.Usecase) error {
+func (o *OrderService) mustSetupGRPCInterceptor() *grpc_interceptor.GRPCInterceptor {
+	return grpc_interceptor.New(o.logger)
+}
+
+func (o *OrderService) mustStartGRPCServer(usecase usecase.Usecase, interceptor *grpc_interceptor.GRPCInterceptor) error {
 	const layer = "app"
 	const method = "mustStartGRPCServer"
 
-	grpcInterceptor := grpc_interceptor.New(o.logger)
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			grpcInterceptor.XRequestIDInterceptor(),
-			grpcInterceptor.LoggerInterceptor(),
-			grpcInterceptor.UnaryPanicRecoveryInterceptor(),
+			interceptor.XRequestIDInterceptor(),
+			interceptor.LoggerInterceptor(),
+			interceptor.UnaryPanicRecoveryInterceptor(),
 			grpc_prometheus.UnaryServerInterceptor,
 		),
 	)
