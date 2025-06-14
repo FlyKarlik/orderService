@@ -1,6 +1,7 @@
 package order_service
 
 import (
+	"context"
 	"net"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ import (
 	grpc_client "github.com/FlyKarlik/orderService/pkg/client/grpc"
 	"github.com/FlyKarlik/orderService/pkg/logger"
 	"github.com/FlyKarlik/orderService/pkg/metric"
+	"github.com/FlyKarlik/orderService/pkg/tracer"
 	pb "github.com/FlyKarlik/proto/order_service/gen/order_service/proto"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
@@ -101,6 +103,8 @@ func (o *OrderService) mustStartPrometheus() error {
 func (o *OrderService) mustSetupTracer() {
 	const method = "mustSetupTracer"
 	const layer = "app"
+
+	tracer.New(context.Background(), o.cfg)
 
 	o.logger.Info(layer, method, "setting up tracing")
 }
