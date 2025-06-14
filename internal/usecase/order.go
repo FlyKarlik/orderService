@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/FlyKarlik/orderService/internal/domain"
@@ -59,14 +60,51 @@ func (o *orderUsecase) CreateOrder(
 		attribute.String("market_id", req.MarketID.String()),
 	)
 
-	marketsResp, err := o.driver.ViewMarkets(ctx, domain.ViewMarketsRequest{
-		UserRoles: req.UserRoles,
-	})
+	cacheKey := "markets:" + strings.Join(req.UserRoles.Strings(), ",")
+
+	var marketsResp domain.ViewMarketsResponse
+
+	cacheSpanCtx, cacheSpan := o.tracer.Start(ctx, "RedisCache.Get")
+	marketsResp, err := o.repo.Get(cacheSpanCtx, cacheKey)
+	cacheSpan.End()
+
 	if err != nil {
-		o.logger.Error(layer, method, "failed to get markets from SpotInstrumentService", err,
+		o.logger.Error(layer, method, "failed to get markets from cache", err,
 			"x_request_id", xReqID,
 		)
-		return domain.CreateOrderResponse{}, errs.ErrUnknown
+	}
+
+	if len(marketsResp.Markets) == 0 {
+		o.logger.Info(layer, method, "cache miss — calling SpotInstrumentService",
+			"x_request_id", xReqID,
+		)
+
+		svcSpanCtx, svcSpan := o.tracer.Start(ctx, "SpotInstrumentService.ViewMarkets")
+		marketsResp, err = o.driver.ViewMarkets(svcSpanCtx, domain.ViewMarketsRequest{
+			UserRoles: req.UserRoles,
+		})
+		svcSpan.End()
+
+		if err != nil {
+			o.logger.Error(layer, method, "failed to get markets from SpotInstrumentService", err,
+				"x_request_id", xReqID,
+			)
+			return domain.CreateOrderResponse{}, errs.ErrUnknown
+		}
+
+		setSpanCtx, setSpan := o.tracer.Start(ctx, "RedisCache.Set")
+		err = o.repo.Set(setSpanCtx, cacheKey, marketsResp, 5*time.Minute)
+		setSpan.End()
+
+		if err != nil {
+			o.logger.Error(layer, method, "failed to set markets to cache", err,
+				"x_request_id", xReqID,
+			)
+		}
+	} else {
+		o.logger.Info(layer, method, "cache hit — using cached markets",
+			"x_request_id", xReqID,
+		)
 	}
 
 	marketExists := false

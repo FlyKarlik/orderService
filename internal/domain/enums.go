@@ -40,3 +40,11 @@ func (u UserRoleEnum) String() string {
 }
 
 type UserRolesEnum []UserRoleEnum
+
+func (u UserRolesEnum) Strings() []string {
+	res := make([]string, 0, len(u))
+	for _, role := range u {
+		res = append(res, role.String())
+	}
+	return res
+}

@@ -14,6 +14,7 @@ import (
 	"github.com/FlyKarlik/orderService/internal/driver"
 	"github.com/FlyKarlik/orderService/internal/repository"
 	"github.com/FlyKarlik/orderService/internal/usecase"
+	"github.com/FlyKarlik/orderService/pkg/cache"
 	grpc_client "github.com/FlyKarlik/orderService/pkg/client/grpc"
 	"github.com/FlyKarlik/orderService/pkg/logger"
 	"github.com/FlyKarlik/orderService/pkg/metric"
@@ -113,8 +114,10 @@ func (o *OrderService) mustSetupRepo() repository.Repository {
 	const method = "mustSetupRepo"
 	const layer = "app"
 
+	redisClient := cache.NewRedisClient(o.cfg)
+
 	o.logger.Info(layer, method, "setting up repository")
-	return repository.New(o.logger)
+	return repository.New(o.logger, redisClient)
 }
 
 func (o *OrderService) mustSetupDriver(cfg *config.Config, l logger.Logger) (driver.Driver, []grpc_client.IGRPCClient, error) {
